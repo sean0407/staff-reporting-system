@@ -51,6 +51,21 @@ index.html
 | G: 價格 | 成交價格 |
 | H: 備註 | 備註 |
 
+### 店平均
+
+門市平均業績來源：
+
+```text
+https://docs.google.com/spreadsheets/d/1jUw-elSYrlIftyuGBcTbUqE5NmUmCMxQRViCdfcQ4uo/edit?gid=684881769
+```
+
+預設讀取 `店平均!A3:B`：
+
+| 欄位 | 用途 |
+|------|------|
+| A: 通路+店名 | 對應登入門市 |
+| B: 店平均 | 該門市平均業績 |
+
 ## Vercel 環境變數
 
 Production URL：
@@ -93,6 +108,8 @@ GOOGLE_OAUTH_REFRESH_TOKEN=OAuth refresh token
 GOOGLE_PRODUCTS_SHEET=Price
 GOOGLE_STORES_SHEET=駐點清單
 GOOGLE_REPORTS_SHEET=回報
+GOOGLE_STORE_AVERAGE_SHEET_ID=1jUw-elSYrlIftyuGBcTbUqE5NmUmCMxQRViCdfcQ4uo
+GOOGLE_STORE_AVERAGE_SHEET=店平均
 ```
 
 ## Google 權限設定
@@ -118,6 +135,8 @@ GOOGLE_REPORTS_SHEET=回報
 | `/api/reports` | GET | 讀取今日回報，支援 `name`、`store`、`scope=all` |
 | `/api/reports` | POST | 新增回報到 `回報` |
 | `/api/reports/delete` | DELETE | 依 `id` 刪除回報 |
+
+系統沒有固定時間自動清除前端 localStorage 或 Google Sheet 資料。Admin 的 `Clear All 清除全部` 是手動功能，只會刪除當下畫面載入的今日回報。
 
 ## 本地檢查
 

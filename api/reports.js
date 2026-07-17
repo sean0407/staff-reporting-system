@@ -1,6 +1,7 @@
 const {
   REPORTS_SHEET,
   appendValues,
+  getStoreAverage,
   getQuery,
   handleError,
   json,
@@ -18,12 +19,17 @@ module.exports = async function reportsHandler(req, res) {
       const name = getQuery(req, 'name') || '';
       const store = getQuery(req, 'store') || '';
       const rows = await readRange(`'${REPORTS_SHEET}'!A2:H`);
-
-      return json(res, 200, summarizeReports(rows, {
+      const payload = summarizeReports(rows, {
         includeUserFields: true,
         name: scope === 'all' ? '' : name,
         store: scope === 'all' ? '' : store,
-      }));
+      });
+
+      if (scope !== 'all' && store) {
+        payload.storeAverage = await getStoreAverage(store);
+      }
+
+      return json(res, 200, payload);
     }
 
     if (req.method === 'POST') {

@@ -383,6 +383,10 @@
         <div class="card" id="reportForm">
             <!-- Daily Sales Summary -->
             <div id="dailySales" style="display:none;background:linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);border-radius:12px;padding:15px;margin-bottom:15px;text-align:center;color:#fff;">
+                <div id="storeAverageBlock" style="display:none;border-bottom:1px solid rgba(255,255,255,0.28);padding-bottom:10px;margin-bottom:10px;">
+                    <div style="font-size:12px;opacity:0.9;">門市平均業績 Store Average</div>
+                    <div style="font-size:22px;font-weight:900;" id="storeAverageAmount">$0</div>
+                </div>
                 <div style="font-size:12px;opacity:0.9;">累積營業額 Cumulative Sales</div>
                 <div style="font-size:28px;font-weight:900;" id="totalSalesAmount">$0</div>
                 <div style="font-size:12px;opacity:0.8;" id="totalSalesCount">0筆成交</div>
@@ -608,6 +612,8 @@
             // 顯示/隱藏 Admin 按鈕
             const existingBtn = document.getElementById('adminSyncBtn');
             if (existingBtn) existingBtn.remove();
+            const existingClearBtn = document.getElementById('adminClearBtn');
+            if (existingClearBtn) existingClearBtn.remove();
             
             if (currentUser.isAdmin) {
                 const btn = document.createElement('button');
@@ -616,7 +622,7 @@
                 btn.style.cssText = 'margin-top:15px;width:100%;font-size:14px;';
                 btn.innerHTML = 'Download CSV 下載.csv';
                 btn.onclick = syncToGoogleSheet;
-                
+
                 // Add clear all button for Admin
                 const clearBtn = document.createElement('button');
                 clearBtn.id = 'adminClearBtn';
@@ -624,7 +630,7 @@
                 clearBtn.style.cssText = 'margin-top:10px;width:100%;font-size:14px;background:#fee2e2;border-color:#fecaca;color:#dc2626;';
                 clearBtn.innerHTML = 'Clear All 清除全部';
                 clearBtn.onclick = clearAllReports;
-                
+
                 const dailySales = document.getElementById('dailySales');
                 if (dailySales) {
                     dailySales.parentNode.insertBefore(btn, dailySales.nextSibling);
@@ -671,10 +677,10 @@
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
         }
-        
-        // Admin 清除全部資料
+
+        // Admin 清除今日銷售資料
         async function clearAllReports() {
-            if (!confirm('確定要清除所有銷售資料嗎？此操作無法復原！')) {
+            if (!confirm('確定要清除今日銷售資料嗎？此操作無法復原！')) {
                 return;
             }
             
@@ -684,7 +690,7 @@
             }
             
             try {
-                // 逐一刪除每筆記錄
+                // 逐一刪除目前畫面載入的今日記錄
                 for (const report of dailyReportsData) {
                     const params = new URLSearchParams({
                         id: report.id,
@@ -697,8 +703,7 @@
                     });
                 }
                 
-                alert('已清除所有銷售資料');
-                // 重新載入
+                alert('已清除今日銷售資料');
                 loadDailySales();
             } catch (err) {
                 alert('清除失敗: ' + err.message);
@@ -755,6 +760,15 @@
                     const totalAmount = data.total || data.totalSales || 0;
                     document.getElementById('totalSalesAmount').textContent = '$' + totalAmount.toLocaleString();
                     document.getElementById('totalSalesCount').textContent = data.count + '筆成交';
+
+                    const storeAverageBlock = document.getElementById('storeAverageBlock');
+                    const storeAverageAmount = document.getElementById('storeAverageAmount');
+                    if (data.storeAverage && data.storeAverage.amount) {
+                        storeAverageAmount.textContent = '$' + data.storeAverage.amount.toLocaleString();
+                        storeAverageBlock.style.display = 'block';
+                    } else {
+                        storeAverageBlock.style.display = 'none';
+                    }
                     
                     // 儲存回報資料
                     dailyReportsData = data.reports || [];
@@ -1033,16 +1047,10 @@
             const saved = localStorage.getItem('staffReport_history');
             if (saved) {
                 reportHistory = JSON.parse(saved);
-                
-                const today = new Date().toDateString();
-                const todayReports = reportHistory.filter(r => 
-                    new Date(r.date).toDateString() === today
-                );
-                
-                if (todayReports.length > 0) {
+
+                if (reportHistory.length > 0) {
                     let html = '';
-                    todayReports.forEach((r, index) => {
-                        const time = new Date(r.date).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+                    reportHistory.forEach((r, index) => {
                         html += `
                             <div class="history-item">
                                 <div class="header">
