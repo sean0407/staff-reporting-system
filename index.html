@@ -706,9 +706,13 @@
                         store: report.store || ''
                     });
                     
-                    await fetch(`${GOOGLE_SHEETS_CONFIG.deleteReportUrl}?${params.toString()}`, {
+                    const response = await fetch(`${GOOGLE_SHEETS_CONFIG.deleteReportUrl}?${params.toString()}`, {
                         method: 'DELETE'
                     });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
                 }
                 
                 alert('已清除今日銷售資料');
@@ -731,10 +735,15 @@
                     store: reportStore || ''
                 });
                 
-                await fetch(`${GOOGLE_SHEETS_CONFIG.deleteReportUrl}?${params.toString()}`, {
+                const response = await fetch(`${GOOGLE_SHEETS_CONFIG.deleteReportUrl}?${params.toString()}`, {
                     method: 'DELETE'
                 });
-                loadDailySales();
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                await loadDailySales();
             } catch (err) {
                 alert('刪除失敗: ' + err.message);
             }
@@ -1042,7 +1051,7 @@
             if (dailyReportsData && dailyReportsData.length > 0) {
                 let html = '';
                 dailyReportsData.forEach((r, index) => {
-                    const deleteBtn = currentUser.isAdmin ? 
+                    const deleteBtn = currentUser ? 
                         `<button onclick="deleteReportById('${r.id}', '${r.name}', '${r.store}')" style="background:#fee2e2;border:1px solid #fecaca;color:#dc2626;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;">Delete</button>` : '';
                     
                     html += `

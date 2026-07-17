@@ -136,7 +136,7 @@ GOOGLE_STORE_AVERAGE_SHEET=店平均
 | `/api/stores` | GET | 讀取 `駐點清單` 門市資料 |
 | `/api/reports` | GET | 讀取今日回報，支援 `name`、`store`、`scope=all` |
 | `/api/reports` | POST | 新增回報到 `回報` |
-| `/api/reports/delete` | DELETE | 依 `id` 刪除回報 |
+| `/api/reports/delete` | DELETE | 依 `id + 姓名 + 店名` 刪除今日回報 |
 
 系統沒有固定時間自動清除前端 localStorage 或 Google Sheet 資料。Admin 的 `Clear All 清除全部` 是手動功能，只會刪除當下畫面載入的今日回報。
 

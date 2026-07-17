@@ -5,6 +5,7 @@ const {
   handleError,
   json,
   readRange,
+  todayTaipeiDateString,
 } = require('../../lib/sheets');
 
 module.exports = async function deleteReportHandler(req, res) {
@@ -22,11 +23,13 @@ module.exports = async function deleteReportHandler(req, res) {
     }
 
     const rows = await readRange(`'${REPORTS_SHEET}'!A2:I`);
+    const today = todayTaipeiDateString();
     const rowIndex = rows.findIndex((row) => {
       const rowId = String(row[0] || '');
+      const rowTime = String(row[1] || '');
       const rowName = String(row[2] || '');
       const rowStore = String(row[3] || '');
-      return rowId === id && rowName === name && rowStore === store;
+      return rowId === id && rowTime.slice(0, 10) === today && rowName === name && rowStore === store;
     });
 
     if (rowIndex === -1) {

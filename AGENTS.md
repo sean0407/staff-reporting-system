@@ -12,7 +12,7 @@
 - `api/products.js`：讀 `Price` 工作表，包含 `F: 台獎`。
 - `api/stores.js`：讀 `駐點清單` 工作表。
 - `api/reports.js`：新增回報與讀取今日回報。
-- `api/reports/delete.js`：依 `ID + 姓名 + 店名` 刪除回報。
+- `api/reports/delete.js`：依 `ID + 姓名 + 店名` 刪除今日回報，避免誤刪舊資料。
 
 前端只應呼叫同網域 API：
 
