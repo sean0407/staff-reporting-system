@@ -526,7 +526,7 @@
         // 載入門市清單
         async function loadStores() {
             try {
-                const response = await fetch(GOOGLE_SHEETS_CONFIG.storesUrl);
+                const response = await fetch(GOOGLE_SHEETS_CONFIG.storesUrl, { cache: 'no-store' });
                 const stores = await response.json();
                 
                 const select = document.getElementById('loginStore');
@@ -752,7 +752,7 @@
                     return;
                 }
                 
-                const response = await fetch(url);
+                const response = await fetch(url, { cache: 'no-store' });
                 data = await response.json();
                 
                 if (data.total !== undefined || data.totalSales !== undefined) {
@@ -789,7 +789,7 @@
             }
             
             try {
-                const response = await fetch(GOOGLE_SHEETS_CONFIG.productsUrl);
+                const response = await fetch(GOOGLE_SHEETS_CONFIG.productsUrl, { cache: 'no-store' });
                 const products = await response.json();
                 
                 if (Array.isArray(products) && products.length > 0) {
@@ -952,7 +952,7 @@
         }
         
         // ==================== Submit Report ====================
-        function submitReport() {
+        async function submitReport() {
             const note = document.getElementById('reportNote').value.trim();
             
             if (!selectedProduct) {
@@ -976,20 +976,25 @@
             reportHistory.unshift(report);
             localStorage.setItem('staffReport_history', JSON.stringify(reportHistory));
             
-            // Try to push to Google Sheets
-            pushReportToSheets(report);
-            
-            // Show success
-            document.getElementById('reportForm').classList.remove('active');
-            document.getElementById('successResult').classList.remove('hidden');
-            
-            loadHistory();
+            try {
+                await pushReportToSheets(report);
+                await loadDailySales();
+
+                // Show success
+                document.getElementById('reportForm').classList.remove('active');
+                document.getElementById('successResult').classList.remove('hidden');
+
+                loadHistory();
+            } catch (err) {
+                alert('回報送出失敗，請稍後再試');
+                console.error('Submit report failed:', err);
+            }
         }
         
         async function pushReportToSheets(report) {
             if (GOOGLE_SHEETS_CONFIG.useDemoMode) {
                 console.log('Demo mode - report saved locally:', report);
-                return;
+                return true;
             }
             
             try {
@@ -999,21 +1004,23 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                    name: report.userName,
-                    store: report.storeName,
-                    pn: report.productPN,
-                    productName: report.productName,
-                    price: report.price || '',
-                    note: report.note,
-                    timestamp: report.timestamp
+                        name: report.userName,
+                        store: report.storeName,
+                        pn: report.productPN,
+                        productName: report.productName,
+                        price: report.price || '',
+                        note: report.note,
+                        timestamp: report.timestamp
                     })
                 });
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
+                return true;
             } catch (err) {
                 console.error('Failed to push report to Google Sheets:', err);
+                throw err;
             }
         }
         
