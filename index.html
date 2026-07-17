@@ -755,6 +755,14 @@
         }
         
         // Admin 匯出功能 - 下載 Excel
+        function toCsvCell(value) {
+            const text = String(value || '');
+            if (/[",\n\r]/.test(text)) {
+                return `"${text.replace(/"/g, '""')}"`;
+            }
+            return text;
+        }
+
         function syncToGoogleSheet() {
             if (!dailyReportsData || dailyReportsData.length === 0) {
                 alert('沒有資料可匯出');
@@ -762,10 +770,22 @@
             }
             
             // 建立 CSV 內容（可以用 Excel 開啟）
-            let csv = 'ID,時間,姓名,店名,PN,品名,價格,備註\n';
+            const headers = ['ID', '時間', '姓名', '店名', 'PN', '品名', '價格', '備註', '台獎'];
+            let csv = headers.map(toCsvCell).join(',') + '\n';
             
             dailyReportsData.forEach(r => {
-                csv += `${r.id || ''},${r.time || ''},${r.name || ''},${r.store || ''},${r.pn || ''},${r.productName || ''},${r.price || ''},${r.note || ''}\n`;
+                const row = [
+                    r.id || '',
+                    r.time || '',
+                    r.name || '',
+                    r.store || '',
+                    r.pn || '',
+                    r.productName || '',
+                    r.price || '',
+                    r.note || '',
+                    r.reward || '',
+                ];
+                csv += row.map(toCsvCell).join(',') + '\n';
             });
             
             // 建立 Blob 並下載
