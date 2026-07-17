@@ -70,6 +70,17 @@ GOOGLE_SHEET_ID=13dERZnpJIrB_H6DfpjVBYNuvYRUfjn-01YzCrALGBuw
 GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 ```
 
+臨時部署也支援使用既有 Google OAuth token：
+
+```text
+GOOGLE_SHEET_ID=13dERZnpJIrB_H6DfpjVBYNuvYRUfjn-01YzCrALGBuw
+GOOGLE_OAUTH_CLIENT_ID=OAuth client id
+GOOGLE_OAUTH_CLIENT_SECRET=OAuth client secret
+GOOGLE_OAUTH_REFRESH_TOKEN=OAuth refresh token
+```
+
+長期仍建議改用 service account，權限比較單純，也比較不受個人帳號 token 影響。
+
 如果工作表名稱未來改掉，可用這些變數覆蓋預設值：
 
 ```text
