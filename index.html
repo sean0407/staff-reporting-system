@@ -390,6 +390,10 @@
                 <div style="font-size:12px;opacity:0.9;">累積營業額 Cumulative Sales</div>
                 <div style="font-size:28px;font-weight:900;" id="totalSalesAmount">$0</div>
                 <div style="font-size:12px;opacity:0.8;" id="totalSalesCount">0筆成交</div>
+                <div id="dailyRewardBlock" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.22);">
+                    <div style="font-size:12px;opacity:0.9;">今日台獎 Incentive</div>
+                    <div style="font-size:22px;font-weight:900;" id="dailyRewardAmount">$0</div>
+                </div>
             </div>
             
             <div class="card-title" id="productReportTitle">
@@ -445,6 +449,10 @@
                 <div class="info-row">
                     <span class="info-label">價格</span>
                     <span class="info-value" id="infoPrice">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">台獎</span>
+                    <span class="info-value" id="infoReward">-</span>
                 </div>
             </div>
             
@@ -758,8 +766,10 @@
                 if (data.total !== undefined || data.totalSales !== undefined) {
                     document.getElementById('dailySales').style.display = 'block';
                     const totalAmount = data.total || data.totalSales || 0;
+                    const rewardTotal = data.rewardTotal || 0;
                     document.getElementById('totalSalesAmount').textContent = '$' + totalAmount.toLocaleString();
                     document.getElementById('totalSalesCount').textContent = data.count + '筆成交';
+                    document.getElementById('dailyRewardAmount').textContent = '$' + rewardTotal.toLocaleString();
 
                     const storeAverageBlock = document.getElementById('storeAverageBlock');
                     const storeAverageAmount = document.getElementById('storeAverageAmount');
@@ -828,6 +838,7 @@
             document.getElementById('infoSpec').textContent = product.spec;
             document.getElementById('infoCategory').textContent = product.category;
             document.getElementById('infoPrice').textContent = product.price || '-';
+            document.getElementById('infoReward').textContent = product.reward || '-';
             document.getElementById('productInfo').classList.add('show');
         }
         
@@ -969,6 +980,7 @@
                 productPN: selectedProduct.pn,
                 productName: selectedProduct.name,
                 price: selectedProduct.price || '',
+                reward: selectedProduct.reward || '',
                 note: note || '-'
             };
             
@@ -1009,6 +1021,7 @@
                         pn: report.productPN,
                         productName: report.productName,
                         price: report.price || '',
+                        reward: report.reward || '',
                         note: report.note,
                         timestamp: report.timestamp
                     })
@@ -1039,6 +1052,7 @@
                                 <span class="time">${r.timestamp}</span>
                             </div>
                             <div style="font-size:12px;color:#6b7280;margin:5px 0;">${r.name} | ${r.store}</div>
+                            <div style="font-size:12px;color:#6b7280;margin:5px 0;">台獎：${r.reward || '-'}</div>
                             <div style="display:flex;justify-content:space-between;align-items:center;">
                                 ${r.note ? `<div class="note">${r.note}</div>` : '<div></div>'}
                                 ${deleteBtn}
@@ -1076,8 +1090,9 @@
                                     <span class="time">${r.timestamp || r.date || ''}</span>
                                 </div>
                                 <div style="font-size:12px;color:#888;margin:5px 0;">${r.userName || r.name || ''} | ${r.storeName || r.store || ''}</div>
+                                <div style="font-size:12px;color:#888;margin:5px 0;">台獎：${r.reward || '-'}</div>
                                 <div style="display:flex;justify-content:space-between;align-items:center;">
-                                    ${r.note && r.note !== '-' ? `<div class="note">📝 ${r.note}</div>` : '<div></div>'}
+                                    ${r.note && r.note !== '-' ? `<div class="note">${r.note}</div>` : '<div></div>'}
                                 </div>
                             </div>
                         `;

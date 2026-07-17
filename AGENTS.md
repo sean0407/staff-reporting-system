@@ -9,7 +9,7 @@
 主後端檔案：
 
 - `lib/sheets.js`：Google Sheets client、環境變數、共用讀寫 helper。
-- `api/products.js`：讀 `Price` 工作表。
+- `api/products.js`：讀 `Price` 工作表，包含 `F: 台獎`。
 - `api/stores.js`：讀 `駐點清單` 工作表。
 - `api/reports.js`：新增回報與讀取今日回報。
 - `api/reports/delete.js`：依 `ID + 姓名 + 店名` 刪除回報。
@@ -100,4 +100,5 @@ npm audit --omit=dev
 - `.gitignore` 不可忽略 `api/`，否則 Vercel 後端不會進 repo。
 - 不要提交 `node_modules/`。
 - 回報時間延續舊 Apps Script 行為，用台北時間日期做今日統計。
+- `回報` 工作表目前使用 `I: 台獎` 保存每筆回報送出當下的單品台獎，今日台獎統計由同日同門市回報加總。
 - 沒有固定時間自動清除前端 localStorage 或 Google Sheet 資料；Admin 的 `Clear All 清除全部` 是手動功能，保留。

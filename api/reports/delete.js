@@ -21,7 +21,7 @@ module.exports = async function deleteReportHandler(req, res) {
       return json(res, 400, { error: 'Missing report id, name, or store' });
     }
 
-    const rows = await readRange(`'${REPORTS_SHEET}'!A2:H`);
+    const rows = await readRange(`'${REPORTS_SHEET}'!A2:I`);
     const rowIndex = rows.findIndex((row) => {
       const rowId = String(row[0] || '');
       const rowName = String(row[2] || '');

@@ -18,7 +18,7 @@ module.exports = async function reportsHandler(req, res) {
       const scope = getQuery(req, 'scope') || '';
       const name = getQuery(req, 'name') || '';
       const store = getQuery(req, 'store') || '';
-      const rows = await readRange(`'${REPORTS_SHEET}'!A2:H`);
+      const rows = await readRange(`'${REPORTS_SHEET}'!A2:I`);
       const payload = summarizeReports(rows, {
         includeUserFields: true,
         name: scope === 'all' ? '' : name,
@@ -45,9 +45,10 @@ module.exports = async function reportsHandler(req, res) {
         body.productName || '',
         body.price || '',
         body.note || '-',
+        body.reward || '',
       ];
 
-      await appendValues(`'${REPORTS_SHEET}'!A:H`, [row]);
+      await appendValues(`'${REPORTS_SHEET}'!A:I`, [row]);
       return json(res, 200, { status: 'success', id });
     }
 

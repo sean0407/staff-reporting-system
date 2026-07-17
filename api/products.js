@@ -11,7 +11,7 @@ module.exports = async function productsHandler(req, res) {
   }
 
   try {
-    const rows = await readRange(`'${PRODUCTS_SHEET}'!A2:E`);
+    const rows = await readRange(`'${PRODUCTS_SHEET}'!A2:F`);
     const products = rows
       .filter((row) => row[0])
       .map((row) => {
@@ -23,6 +23,7 @@ module.exports = async function productsHandler(req, res) {
           spec: category,
           category,
           price: String(row[4] || '').trim(),
+          reward: String(row[5] || '').trim(),
         };
       });
 
