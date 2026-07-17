@@ -916,7 +916,7 @@
                 html += `
                     <div onclick="selectProduct('${p.pn}')" style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;">
                         <div style="font-weight:600;color:var(--primary);font-size:14px;">${p.pn}</div>
-                        <div style="color:#ccc;font-size:13px;">${p.name}</div>
+                        <div style="color:var(--primary);font-size:13px;">${p.name}</div>
                     </div>
                 `;
             });
@@ -949,7 +949,7 @@
                 html += `
                     <div onclick="selectProduct('${p.pn}')" style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;">
                         <div style="font-weight:600;color:var(--primary);font-size:14px;">${p.pn}</div>
-                        <div style="color:#ccc;font-size:13px;">${p.name}</div>
+                        <div style="color:var(--primary);font-size:13px;">${p.name}</div>
                         <div style="color:#888;font-size:11px;">${p.spec || ''} | ${p.category || ''}</div>
                     </div>
                 `;
