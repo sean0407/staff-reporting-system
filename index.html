@@ -483,9 +483,10 @@
     <script>
         // ==================== Configuration ====================
         const GOOGLE_SHEETS_CONFIG = {
-            // Google Apps Script Web App URLs
-            productsUrl: 'https://script.google.com/macros/s/AKfycbykE88LDR2uXa3YKNrHSqGpCx2ufqgb3VGxQhi98SgF3ltnAi2Y8QmyYdH-t2U45hxj/exec',
-            reportsUrl: 'https://script.google.com/macros/s/AKfycbykE88LDR2uXa3YKNrHSqGpCx2ufqgb3VGxQhi98SgF3ltnAi2Y8QmyYdH-t2U45hxj/exec',
+            productsUrl: '/api/products',
+            storesUrl: '/api/stores',
+            reportsUrl: '/api/reports',
+            deleteReportUrl: '/api/reports/delete',
             // Use demo mode - set to true only for testing
             useDemoMode: false
         };
@@ -521,8 +522,7 @@
         // 載入門市清單
         async function loadStores() {
             try {
-                const url = `${GOOGLE_SHEETS_CONFIG.productsUrl}?action=getStores`;
-                const response = await fetch(url);
+                const response = await fetch(GOOGLE_SHEETS_CONFIG.storesUrl);
                 const stores = await response.json();
                 
                 const select = document.getElementById('loginStore');
@@ -687,13 +687,14 @@
                 // 逐一刪除每筆記錄
                 for (const report of dailyReportsData) {
                     const params = new URLSearchParams({
-                        action: 'deleteReport',
                         id: report.id,
                         name: report.name || '',
                         store: report.store || ''
                     });
                     
-                    await fetch(`${GOOGLE_SHEETS_CONFIG.reportsUrl}?${params.toString()}`);
+                    await fetch(`${GOOGLE_SHEETS_CONFIG.deleteReportUrl}?${params.toString()}`, {
+                        method: 'DELETE'
+                    });
                 }
                 
                 alert('已清除所有銷售資料');
@@ -712,13 +713,14 @@
             
             try {
                 const params = new URLSearchParams({
-                    action: 'deleteReport',
                     id: reportId,
                     name: reportName || '',
                     store: reportStore || ''
                 });
                 
-                await fetch(`${GOOGLE_SHEETS_CONFIG.reportsUrl}?${params.toString()}`);
+                await fetch(`${GOOGLE_SHEETS_CONFIG.deleteReportUrl}?${params.toString()}`, {
+                    method: 'DELETE'
+                });
                 loadDailySales();
             } catch (err) {
                 alert('刪除失敗: ' + err.message);
@@ -737,10 +739,10 @@
                 
                 if (currentUser && currentUser.isAdmin) {
                     // Admin: 讀取所有報告
-                    url = `${GOOGLE_SHEETS_CONFIG.productsUrl}?action=getAllReports`;
+                    url = `${GOOGLE_SHEETS_CONFIG.reportsUrl}?scope=all`;
                 } else if (currentUser) {
                     // 一般用戶: 只讀取自己的報告
-                    url = `${GOOGLE_SHEETS_CONFIG.productsUrl}?action=getUserReports&name=${encodeURIComponent(currentUser.name)}&store=${encodeURIComponent(currentUser.store)}`;
+                    url = `${GOOGLE_SHEETS_CONFIG.reportsUrl}?name=${encodeURIComponent(currentUser.name)}&store=${encodeURIComponent(currentUser.store)}`;
                 } else {
                     return;
                 }
@@ -773,8 +775,7 @@
             }
             
             try {
-                const url = `${GOOGLE_SHEETS_CONFIG.productsUrl}?action=getProducts`;
-                const response = await fetch(url);
+                const response = await fetch(GOOGLE_SHEETS_CONFIG.productsUrl);
                 const products = await response.json();
                 
                 if (Array.isArray(products) && products.length > 0) {
@@ -978,8 +979,12 @@
             }
             
             try {
-                const params = new URLSearchParams({
-                    action: 'addReport',
+                const response = await fetch(GOOGLE_SHEETS_CONFIG.reportsUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
                     name: report.userName,
                     store: report.storeName,
                     pn: report.productPN,
@@ -987,11 +992,12 @@
                     price: report.price || '',
                     note: report.note,
                     timestamp: report.timestamp
+                    })
                 });
-                
-                const url = `${GOOGLE_SHEETS_CONFIG.reportsUrl}?${params.toString()}`;
-                
-                await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
             } catch (err) {
                 console.error('Failed to push report to Google Sheets:', err);
             }

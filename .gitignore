@@ -1,4 +1,4 @@
 .vercel
 .vercel/
-api/
+node_modules/
 *.log

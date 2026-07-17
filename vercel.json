@@ -6,14 +6,18 @@
       "use": "@vercel/static"
     },
     {
-      "src": "api/submit.js",
+      "src": "pricing.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/**/*.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/submit",
-      "dest": "/api/submit.js"
+      "src": "/api/(.*)",
+      "dest": "/api/$1.js"
     },
     {
       "src": "/pricing",
