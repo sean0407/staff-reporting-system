@@ -391,7 +391,13 @@
                     <div style="font-size:22px;font-weight:900;" id="storeAverageAmount">$0</div>
                 </div>
                 <div style="font-size:12px;opacity:0.9;">當日營業額 Cumulative Sales</div>
-                <div style="font-size:28px;font-weight:900;" id="totalSalesAmount">$0</div>
+                <div style="display:flex;align-items:flex-end;justify-content:center;gap:14px;">
+                    <div style="font-size:28px;font-weight:900;" id="totalSalesAmount">$0</div>
+                    <div style="text-align:left;padding-bottom:3px;">
+                        <div style="font-size:10px;opacity:0.78;">達成率</div>
+                        <div style="font-size:15px;font-weight:800;line-height:1.1;" id="achievementRate">--</div>
+                    </div>
+                </div>
                 <div style="font-size:12px;opacity:0.8;" id="totalSalesCount">0筆成交</div>
                 <div id="dailyRewardBlock" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.22);">
                     <div style="font-size:12px;opacity:0.9;">今日台獎 Incentive</div>
@@ -780,14 +786,18 @@
                     document.getElementById('dailySales').style.display = 'block';
                     const totalAmount = data.total || data.totalSales || 0;
                     const rewardTotal = data.rewardTotal || 0;
+                    const storeAverage = data.storeAverage && data.storeAverage.amount ? data.storeAverage.amount : 0;
                     document.getElementById('totalSalesAmount').textContent = '$' + totalAmount.toLocaleString();
                     document.getElementById('totalSalesCount').textContent = data.count + '筆成交';
                     document.getElementById('dailyRewardAmount').textContent = '$' + rewardTotal.toLocaleString();
+                    document.getElementById('achievementRate').textContent = storeAverage
+                        ? ((totalAmount / storeAverage) * 100).toFixed(1).replace('.0', '') + '%'
+                        : '--';
 
                     const storeAverageBlock = document.getElementById('storeAverageBlock');
                     const storeAverageAmount = document.getElementById('storeAverageAmount');
-                    if (data.storeAverage && data.storeAverage.amount) {
-                        storeAverageAmount.textContent = '$' + data.storeAverage.amount.toLocaleString();
+                    if (storeAverage) {
+                        storeAverageAmount.textContent = '$' + storeAverage.toLocaleString();
                         storeAverageBlock.style.display = 'block';
                     } else {
                         storeAverageBlock.style.display = 'none';
