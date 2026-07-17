@@ -152,7 +152,10 @@
         .btn-secondary:hover {
             background: rgba(0,0,0,0.1);
         }
-            background: rgba(255,255,255,0.15);
+
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.65;
         }
         
         .product-search {
@@ -462,7 +465,7 @@
                 <textarea id="reportNote" placeholder="請輸入任何需要記錄的事項..."></textarea>
             </div>
             
-            <button class="btn btn-primary" onclick="submitReport()">
+            <button class="btn btn-primary" id="submitReportBtn" onclick="submitReport()">
                 Submit 提交回報
             </button>
             
@@ -523,6 +526,7 @@
         let selectedProduct = null;
         let reportHistory = [];
         let productsCache = [];
+        let isSubmittingReport = false;
         
         // ==================== Initialization ====================
         document.addEventListener('DOMContentLoaded', () => {
@@ -973,11 +977,20 @@
         
         // ==================== Submit Report ====================
         async function submitReport() {
+            if (isSubmittingReport) return;
+
             const note = document.getElementById('reportNote').value.trim();
             
             if (!selectedProduct) {
                 alert('請先查詢產品資訊！');
                 return;
+            }
+
+            isSubmittingReport = true;
+            const submitBtn = document.getElementById('submitReportBtn');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Submitting 送出中...';
             }
             
             const report = {
@@ -1009,6 +1022,12 @@
             } catch (err) {
                 alert('回報送出失敗，請稍後再試');
                 console.error('Submit report failed:', err);
+            } finally {
+                isSubmittingReport = false;
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit 提交回報';
+                }
             }
         }
         
