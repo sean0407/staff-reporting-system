@@ -101,4 +101,5 @@ npm audit --omit=dev
 - 不要提交 `node_modules/`。
 - 回報時間延續舊 Apps Script 行為，用台北時間日期做今日統計。
 - `回報` 工作表目前使用 `I: 台獎` 保存每筆回報送出當下的單品台獎，今日台獎統計由同日同門市回報加總。
+- Admin 帳號的當日營業額目標預設為 1,500,000，前端以 `staffReport_adminDailyTarget` 存在瀏覽器 localStorage，可用畫面上的鉛筆按鈕調整。
 - 沒有固定時間自動清除前端 localStorage 或 Google Sheet 資料；Admin 的 `Clear All 清除全部` 是手動功能，保留。

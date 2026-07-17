@@ -387,8 +387,16 @@
             <!-- Daily Sales Summary -->
             <div id="dailySales" style="display:none;background:linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);border-radius:12px;padding:15px;margin-bottom:15px;text-align:center;color:#fff;">
                 <div id="storeAverageBlock" style="display:none;border-bottom:1px solid rgba(255,255,255,0.28);padding-bottom:10px;margin-bottom:10px;">
-                    <div style="font-size:12px;opacity:0.9;">門市平均業績 Store Average/日</div>
-                    <div style="font-size:22px;font-weight:900;" id="storeAverageAmount">$0</div>
+                    <div style="font-size:12px;opacity:0.9;" id="storeTargetLabel">門市平均業績 Store Average/日</div>
+                    <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+                        <div style="font-size:22px;font-weight:900;" id="storeAverageAmount">$0</div>
+                        <button type="button" id="adminTargetEditBtn" onclick="editAdminDailyTarget()" aria-label="更新目標" style="display:none;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid rgba(255,255,255,0.34);border-radius:50%;background:rgba(255,255,255,0.14);color:#fff;cursor:pointer;padding:0;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 20h9"></path>
+                                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div style="font-size:12px;opacity:0.9;">當日營業額 Cumulative Sales</div>
                 <div style="display:flex;align-items:flex-end;justify-content:center;gap:14px;">
@@ -533,6 +541,8 @@
         let reportHistory = [];
         let productsCache = [];
         let isSubmittingReport = false;
+        const ADMIN_DAILY_TARGET_KEY = 'staffReport_adminDailyTarget';
+        const DEFAULT_ADMIN_DAILY_TARGET = 1500000;
         
         // ==================== Initialization ====================
         document.addEventListener('DOMContentLoaded', () => {
@@ -761,6 +771,26 @@
         
         // ==================== Daily Sales ====================
         let dailyReportsData = [];
+
+        function getAdminDailyTarget() {
+            const saved = Number(localStorage.getItem(ADMIN_DAILY_TARGET_KEY));
+            return saved > 0 ? saved : DEFAULT_ADMIN_DAILY_TARGET;
+        }
+
+        function editAdminDailyTarget() {
+            const currentTarget = getAdminDailyTarget();
+            const input = prompt('請輸入 Admin 當日營業額目標', currentTarget.toLocaleString());
+            if (input === null) return;
+
+            const nextTarget = Number(String(input).replace(/[^0-9.]/g, ''));
+            if (!nextTarget || nextTarget <= 0) {
+                alert('請輸入大於 0 的數字');
+                return;
+            }
+
+            localStorage.setItem(ADMIN_DAILY_TARGET_KEY, String(Math.round(nextTarget)));
+            loadDailySales();
+        }
         
         async function loadDailySales() {
             if (GOOGLE_SHEETS_CONFIG.useDemoMode) return;
@@ -787,19 +817,31 @@
                     const totalAmount = data.total || data.totalSales || 0;
                     const rewardTotal = data.rewardTotal || 0;
                     const storeAverage = data.storeAverage && data.storeAverage.amount ? data.storeAverage.amount : 0;
+                    const targetAmount = currentUser && currentUser.isAdmin ? getAdminDailyTarget() : storeAverage;
                     document.getElementById('totalSalesAmount').textContent = '$' + totalAmount.toLocaleString();
                     document.getElementById('totalSalesCount').textContent = data.count + '筆成交';
                     document.getElementById('dailyRewardAmount').textContent = '$' + rewardTotal.toLocaleString();
-                    document.getElementById('achievementRate').textContent = storeAverage
-                        ? ((totalAmount / storeAverage) * 100).toFixed(1).replace('.0', '') + '%'
+                    document.getElementById('achievementRate').textContent = targetAmount
+                        ? ((totalAmount / targetAmount) * 100).toFixed(1).replace('.0', '') + '%'
                         : '--';
 
                     const storeAverageBlock = document.getElementById('storeAverageBlock');
                     const storeAverageAmount = document.getElementById('storeAverageAmount');
-                    if (storeAverage) {
+                    const storeTargetLabel = document.getElementById('storeTargetLabel');
+                    const adminTargetEditBtn = document.getElementById('adminTargetEditBtn');
+
+                    if (currentUser && currentUser.isAdmin) {
+                        storeTargetLabel.textContent = '當日營業額目標 Daily Target';
+                        storeAverageAmount.textContent = '$' + targetAmount.toLocaleString();
+                        adminTargetEditBtn.style.display = 'inline-flex';
+                        storeAverageBlock.style.display = 'block';
+                    } else if (storeAverage) {
+                        storeTargetLabel.textContent = '門市平均業績 Store Average/日';
                         storeAverageAmount.textContent = '$' + storeAverage.toLocaleString();
+                        adminTargetEditBtn.style.display = 'none';
                         storeAverageBlock.style.display = 'block';
                     } else {
+                        adminTargetEditBtn.style.display = 'none';
                         storeAverageBlock.style.display = 'none';
                     }
                     
