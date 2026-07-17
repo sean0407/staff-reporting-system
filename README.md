@@ -53,6 +53,12 @@ index.html
 
 ## Vercel 環境變數
 
+Production URL：
+
+```text
+https://staff-reporting-system-kappa.vercel.app
+```
+
 必要：
 
 ```text

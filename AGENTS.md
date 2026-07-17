@@ -35,6 +35,28 @@
 13dERZnpJIrB_H6DfpjVBYNuvYRUfjn-01YzCrALGBuw
 ```
 
+## Vercel
+
+Production URL：
+
+```text
+https://staff-reporting-system-kappa.vercel.app
+```
+
+Vercel project：
+
+```text
+staff-reporting-system
+```
+
+目前 production 已部署並驗證：
+
+- `/`：HTTP 200
+- `/api/products`：讀到 682 筆產品
+- `/api/stores`：讀到 72 筆門市
+- `/api/reports?scope=all`：可讀今日回報
+- `/api/reports` + `/api/reports/delete`：暫測資料可寫入並刪除
+
 ## 環境變數
 
 必要：
