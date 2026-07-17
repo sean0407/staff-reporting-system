@@ -1054,17 +1054,28 @@
             const saved = localStorage.getItem('staffReport_history');
             if (saved) {
                 reportHistory = JSON.parse(saved);
+                const today = new Date().toDateString();
+                const visibleReports = reportHistory.filter(r => {
+                    const reportStore = r.storeName || r.store || '';
+                    const reportUser = r.userName || r.name || '';
+                    const reportDate = r.date || r.timestamp || '';
+                    const sameDate = reportDate && new Date(reportDate).toDateString() === today;
+                    const sameStore = currentUser && reportStore === currentUser.store;
+                    const sameUser = currentUser && reportUser === currentUser.name;
 
-                if (reportHistory.length > 0) {
+                    return currentUser && !currentUser.isAdmin && sameDate && sameStore && sameUser;
+                });
+
+                if (visibleReports.length > 0) {
                     let html = '';
-                    reportHistory.forEach((r, index) => {
+                    visibleReports.forEach((r, index) => {
                         html += `
                             <div class="history-item">
                                 <div class="header">
-                                    <span class="pn">${r.pn || ''} - ${r.productName || r.name || ''}</span>
+                                    <span class="pn">${r.productPN || r.pn || ''} - ${r.productName || r.name || ''}</span>
                                     <span class="time">${r.timestamp || r.date || ''}</span>
                                 </div>
-                                <div style="font-size:12px;color:#888;margin:5px 0;">👤 ${r.name || ''} | 🏪 ${r.store || ''}</div>
+                                <div style="font-size:12px;color:#888;margin:5px 0;">${r.userName || r.name || ''} | ${r.storeName || r.store || ''}</div>
                                 <div style="display:flex;justify-content:space-between;align-items:center;">
                                     ${r.note && r.note !== '-' ? `<div class="note">📝 ${r.note}</div>` : '<div></div>'}
                                 </div>
@@ -1072,7 +1083,11 @@
                         `;
                     });
                     document.getElementById('historyList').innerHTML = html;
+                } else {
+                    document.getElementById('historyList').innerHTML = '';
                 }
+            } else {
+                document.getElementById('historyList').innerHTML = '';
             }
         }
         
