@@ -35,7 +35,7 @@ module.exports = async function reportsHandler(req, res) {
     if (req.method === 'POST') {
       const body = await parseBody(req);
       const id = body.id || makeId();
-      const timestamp = body.timestamp || taipeiIsoString();
+      const timestamp = taipeiIsoString();
       const row = [
         id,
         timestamp,

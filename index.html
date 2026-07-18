@@ -763,6 +763,17 @@
             return text;
         }
 
+        function getTaipeiDateString() {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Taipei',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+            }).formatToParts(new Date());
+            const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+            return `${values.year}-${values.month}-${values.day}`;
+        }
+
         function syncToGoogleSheet() {
             if (!dailyReportsData || dailyReportsData.length === 0) {
                 alert('沒有資料可匯出');
@@ -794,7 +805,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `銷售報表_${new Date().toISOString().split('T')[0]}.csv`;
+            link.download = `銷售報表_${getTaipeiDateString()}.csv`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -1197,8 +1208,7 @@
                         productName: report.productName,
                         price: report.price || '',
                         reward: report.reward || '',
-                        note: report.note,
-                        timestamp: report.timestamp
+                        note: report.note
                     })
                 });
 
