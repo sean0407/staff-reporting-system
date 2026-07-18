@@ -90,7 +90,7 @@ Default worksheet name: `回報`
 
 ### Store Average Sheet
 
-Optional. If `GOOGLE_STORE_AVERAGE_SHEET_ID` is not set, the app still works and simply hides the store average value.
+Defaults to spreadsheet `1jUw-elSYrlIftyuGBcTbUqE5NmUmCMxQRViCdfcQ4uo`. Set `GOOGLE_STORE_AVERAGE_SHEET_ID` only when overriding the source.
 
 Default worksheet name: `店平均`
 
@@ -124,7 +124,7 @@ Optional worksheet overrides:
 GOOGLE_PRODUCTS_SHEET=Price
 GOOGLE_STORES_SHEET=駐點清單
 GOOGLE_REPORTS_SHEET=回報
-GOOGLE_STORE_AVERAGE_SHEET_ID=
+GOOGLE_STORE_AVERAGE_SHEET_ID=1jUw-elSYrlIftyuGBcTbUqE5NmUmCMxQRViCdfcQ4uo
 GOOGLE_STORE_AVERAGE_SHEET=店平均
 ```
 
