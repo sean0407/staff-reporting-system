@@ -1,7 +1,7 @@
 {
   "name": "staff-reporting-system",
   "version": "1.0.0",
-  "description": "駐點人員回報系統",
+  "description": "Mobile field sales reporting system",
   "scripts": {
     "check": "node --check lib/sheets.js && node --check api/products.js && node --check api/stores.js && node --check api/reports.js && node --check api/reports/delete.js",
     "dev": "npx vercel dev"

@@ -1,8 +1,21 @@
 # Staff Reporting System
 
-駐點人員銷售回報系統。現行版本使用 Vercel API Routes 讀寫 Google Sheets，不再依賴 Google Apps Script。
+A mobile-first field sales reporting system for promoters, store staff, and field teams.
 
-## 架構
+The app lets staff log in with their name and store, search products by PN or name, submit daily sales records, and review today's submitted reports. Admin users can view all reports for the day and export records to CSV.
+
+## What It Does
+
+- Mobile sales submission form for field staff
+- Product lookup from Google Sheets
+- Store list lookup from Google Sheets
+- Daily personal sales summary
+- Optional store average target display
+- Admin view for all same-day reports
+- CSV export for daily operations follow-up
+- Vercel API Routes backend with Google Sheets as the database
+
+## Architecture
 
 ```text
 index.html
@@ -14,145 +27,139 @@ index.html
   -> Google Sheet
 ```
 
-## Google Sheet 結構
-
-目前後端預設讀寫這 3 張工作表：
-
-### Price
-
-| 欄位 | 用途 |
-|------|------|
-| A: P/N | 產品 PN |
-| B: NAME | 產品名稱 |
-| C: 品類 | 產品分類 |
-| D: PN+品名 | 比對欄，前端不直接使用 |
-| E: New  MOP | 價格 |
-| F: 台獎 | 單品台獎金額 |
-
-### 駐點清單
-
-| 欄位 | 用途 |
-|------|------|
-| A: T2 | 通路 |
-| B: 店名 | 門市名稱 |
-| C: T2+店名 | 前端登入下拉選單 |
-| G: 比對欄通路 | 比對欄 |
-| H: 比對欄店名 | 比對欄 |
-
-### 回報
-
-| 欄位 | 用途 |
-|------|------|
-| A: ID | 回報唯一 ID |
-| B: 時間 | 台北時間 ISO 字串 |
-| C: 姓名 | 回報人 |
-| D: 店名 | 門市 |
-| E: PN | 產品 PN |
-| F: 品名 | 產品名稱 |
-| G: 價格 | 成交價格 |
-| H: 備註 | 備註 |
-| I: 台獎 | 回報當下帶入的單品台獎 |
-
-### 店平均
-
-門市平均業績來源：
+## Repository Structure
 
 ```text
-https://docs.google.com/spreadsheets/d/1jUw-elSYrlIftyuGBcTbUqE5NmUmCMxQRViCdfcQ4uo/edit?gid=684881769
+.
+├── api/
+│   ├── products.js
+│   ├── stores.js
+│   ├── reports.js
+│   └── reports/delete.js
+├── lib/
+│   └── sheets.js
+├── index.html
+├── pricing.html
+├── vercel.json
+├── package.json
+└── .env.example
 ```
 
-預設讀取 `店平均!A3:B`：
+## Google Sheet Schema
 
-| 欄位 | 用途 |
-|------|------|
-| A: 通路+店名 | 對應登入門市 |
-| B: 店平均 | 該門市平均業績 |
+Create one Google Sheet with these worksheets. Worksheet names can be changed through environment variables.
 
-## Vercel 環境變數
+### Products Sheet
 
-Production URL：
+Default worksheet name: `Price`
+
+| Column | Field | Purpose |
+|---|---|---|
+| A | P/N | Product number |
+| B | NAME | Product name |
+| C | Category | Product category or spec |
+| D | Match key | Optional internal matching field |
+| E | Price | Selling price |
+| F | Reward | Optional incentive amount |
+
+### Stores Sheet
+
+Default worksheet name: `駐點清單`
+
+| Column | Field | Purpose |
+|---|---|---|
+| A | Channel | Channel or group |
+| B | Store | Store name |
+| C | Channel + Store | Login dropdown display value |
+
+### Reports Sheet
+
+Default worksheet name: `回報`
+
+| Column | Field | Purpose |
+|---|---|---|
+| A | ID | Unique report ID |
+| B | Time | Submission timestamp |
+| C | Name | Staff name |
+| D | Store | Store name |
+| E | PN | Product number |
+| F | Product name | Product name |
+| G | Price | Submitted selling price |
+| H | Note | Optional note |
+| I | Reward | Reward captured at submission time |
+
+### Store Average Sheet
+
+Optional. If `GOOGLE_STORE_AVERAGE_SHEET_ID` is not set, the app still works and simply hides the store average value.
+
+Default worksheet name: `店平均`
+
+| Column | Field | Purpose |
+|---|---|---|
+| A | Store | Store display value |
+| B | Average | Daily average or target amount |
+
+## Environment Variables
+
+Copy `.env.example` and fill in your own values in Vercel.
+
+Required:
 
 ```text
-https://staff-reporting-system-kappa.vercel.app
+GOOGLE_SHEET_ID=
+GOOGLE_SERVICE_ACCOUNT_EMAIL=
+GOOGLE_PRIVATE_KEY=
 ```
 
-必要：
+You can also use one JSON value instead of separate service account fields:
 
 ```text
-GOOGLE_SHEET_ID=13dERZnpJIrB_H6DfpjVBYNuvYRUfjn-01YzCrALGBuw
-GOOGLE_SERVICE_ACCOUNT_EMAIL=你的 service account email
-GOOGLE_PRIVATE_KEY=你的 service account private key
+GOOGLE_SHEET_ID=
+GOOGLE_SERVICE_ACCOUNT_JSON=
 ```
 
-`GOOGLE_PRIVATE_KEY` 放到 Vercel 時可保留 `\n`，程式會自動轉回換行。
-
-也可以改用單一 JSON：
-
-```text
-GOOGLE_SHEET_ID=13dERZnpJIrB_H6DfpjVBYNuvYRUfjn-01YzCrALGBuw
-GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
-```
-
-臨時部署也支援使用既有 Google OAuth token：
-
-```text
-GOOGLE_SHEET_ID=13dERZnpJIrB_H6DfpjVBYNuvYRUfjn-01YzCrALGBuw
-GOOGLE_OAUTH_CLIENT_ID=OAuth client id
-GOOGLE_OAUTH_CLIENT_SECRET=OAuth client secret
-GOOGLE_OAUTH_REFRESH_TOKEN=OAuth refresh token
-```
-
-長期仍建議改用 service account，權限比較單純，也比較不受個人帳號 token 影響。
-
-如果工作表名稱未來改掉，可用這些變數覆蓋預設值：
+Optional worksheet overrides:
 
 ```text
 GOOGLE_PRODUCTS_SHEET=Price
 GOOGLE_STORES_SHEET=駐點清單
 GOOGLE_REPORTS_SHEET=回報
-GOOGLE_STORE_AVERAGE_SHEET_ID=1jUw-elSYrlIftyuGBcTbUqE5NmUmCMxQRViCdfcQ4uo
+GOOGLE_STORE_AVERAGE_SHEET_ID=
 GOOGLE_STORE_AVERAGE_SHEET=店平均
 ```
 
-## Google 權限設定
+## Google Access Setup
 
-1. 在 Google Cloud 建立 service account。
-2. 產生 JSON key。
-3. 把目標 Google Sheet 分享給 service account email。
-4. 權限給「編輯者」。
-5. 在 Vercel 專案設定環境變數。
+1. Create a Google Cloud service account.
+2. Generate a JSON key for that service account.
+3. Share the target Google Sheet with the service account email.
+4. Give the service account editor access.
+5. Add the environment variables to Vercel.
 
-之後更換資料庫 Sheet 時，只需要：
-
-1. 新 Sheet 保留 `Price`、`駐點清單`、`回報` 3 張表與欄位順序。
-2. 把新 Sheet 分享給同一個 service account。
-3. 更新 Vercel 的 `GOOGLE_SHEET_ID`。
-
-## API Routes
-
-| Route | Method | 說明 |
-|-------|--------|------|
-| `/api/products` | GET | 讀取 `Price` 產品資料 |
-| `/api/stores` | GET | 讀取 `駐點清單` 門市資料 |
-| `/api/reports` | GET | 讀取今日回報，支援 `name`、`store`、`scope=all` |
-| `/api/reports` | POST | 新增回報到 `回報` |
-| `/api/reports/delete` | DELETE | 依 `id + 姓名 + 店名` 刪除今日回報 |
-
-系統沒有固定時間自動清除前端 localStorage 或 Google Sheet 資料。Admin 的 `Clear All 清除全部` 是手動功能，只會刪除當下畫面載入的今日回報。
-
-## 本地檢查
+## Local Check
 
 ```bash
 npm install
 npm run check
 ```
 
-本地完整啟動需先安裝 Vercel CLI 並設定上述環境變數：
+Local API testing is easiest through Vercel:
 
 ```bash
-npx vercel dev
+npm run dev
 ```
 
-## 歷史版本
+## Deploy To Vercel
 
-Apps Script 版本已移到 `archive/`，只保留作為歷史參考。
+1. Import this repository into Vercel.
+2. Add the Google environment variables.
+3. Deploy.
+4. Open `/api/products` and `/api/stores` to confirm the backend can read the Google Sheet.
+5. Open the app and submit one test report.
+
+## Notes For Public Use
+
+- Do not commit real service account keys, OAuth tokens, or private Google Sheet IDs.
+- Use environment variables for every deployment-specific setting.
+- Keep historical internal scripts outside the public repository.
+- Rotate exposed Google Sheet IDs if the repository was previously public with real operational references.

@@ -1,4 +1,13 @@
+.DS_Store
 .vercel
 .vercel/
 node_modules/
 *.log
+
+.env
+.env.*
+!.env.example
+
+AGENTS.md
+CLAUDE.md
+archive/
