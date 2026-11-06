@@ -1170,13 +1170,13 @@
             
             try {
                 await pushReportToSheets(report);
-                await loadDailySales();
 
-                // Show success
+                // Show success as soon as the report is saved; refresh today's totals in the background.
                 document.getElementById('reportForm').classList.remove('active');
                 document.getElementById('successResult').classList.remove('hidden');
 
                 loadHistory();
+                loadDailySales();
             } catch (err) {
                 alert('回報送出失敗，請稍後再試');
                 console.error('Submit report failed:', err);
