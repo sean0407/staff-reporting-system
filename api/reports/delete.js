@@ -4,9 +4,7 @@ const {
   getQuery,
   handleError,
   json,
-  readRange,
-  taipeiDateStringFromValue,
-  todayTaipeiDateString,
+  readTodayReportRows,
 } = require('../../lib/sheets');
 
 module.exports = async function deleteReportHandler(req, res) {
@@ -23,21 +21,19 @@ module.exports = async function deleteReportHandler(req, res) {
       return json(res, 400, { error: 'Missing report id, name, or store' });
     }
 
-    const rows = await readRange(`'${REPORTS_SHEET}'!A2:I`);
-    const today = todayTaipeiDateString();
-    const rowIndex = rows.findIndex((row) => {
-      const rowId = String(row[0] || '');
-      const rowTime = String(row[1] || '');
-      const rowName = String(row[2] || '');
-      const rowStore = String(row[3] || '');
-      return rowId === id && taipeiDateStringFromValue(rowTime) === today && rowName === name && rowStore === store;
-    });
+    // readTodayReportRows 只回傳今天的列，維持「只能刪今日回報」的限制
+    const todayRows = await readTodayReportRows();
+    const match = todayRows.find(({ row }) => (
+      String(row[0] || '') === id &&
+      String(row[2] || '') === name &&
+      String(row[3] || '') === store
+    ));
 
-    if (rowIndex === -1) {
+    if (!match) {
       return json(res, 404, { error: 'Report not found or permission denied' });
     }
 
-    await deleteRow(REPORTS_SHEET, rowIndex + 2);
+    await deleteRow(REPORTS_SHEET, match.rowNumber);
     return json(res, 200, { status: 'success' });
   } catch (error) {
     return handleError(res, error);

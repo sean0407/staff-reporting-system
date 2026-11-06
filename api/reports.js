@@ -7,7 +7,7 @@ const {
   json,
   makeId,
   parseBody,
-  readRange,
+  readTodayReportRows,
   summarizeReports,
   taipeiIsoString,
 } = require('../lib/sheets');
@@ -18,7 +18,7 @@ module.exports = async function reportsHandler(req, res) {
       const scope = getQuery(req, 'scope') || '';
       const name = getQuery(req, 'name') || '';
       const store = getQuery(req, 'store') || '';
-      const rows = await readRange(`'${REPORTS_SHEET}'!A2:I`);
+      const rows = (await readTodayReportRows()).map((entry) => entry.row);
       const payload = summarizeReports(rows, {
         includeUserFields: true,
         name: scope === 'all' ? '' : name,
