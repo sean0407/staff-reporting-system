@@ -442,7 +442,7 @@
             
             <div class="form-group">
                 <label>姓名 Name</label>
-                <input type="text" id="loginName" placeholder="請輸入您的姓名">
+                <input type="text" id="loginName" placeholder="請輸入您的姓名" maxlength="100">
             </div>
             
             <div class="form-group">
@@ -618,9 +618,77 @@
         let isSubmittingReport = false;
         const ADMIN_DAILY_TARGET_KEY = 'staffReport_adminDailyTarget';
         const DEFAULT_ADMIN_DAILY_TARGET = 1500000;
-        
+        // 送出失敗時保留同一個回報 ID，重送時後端用它判斷是否已寫入，避免重複計入
+        let pendingReport = null;
+        const PENDING_REPORT_KEY = 'staffReport_pending';
+
+        // 待確認的回報同步存進 sessionStorage（綁定姓名與門市），重新整理頁面後仍能沿用原 ID
+        function setPendingReport(report) {
+            pendingReport = report;
+            try {
+                if (report) {
+                    sessionStorage.setItem(PENDING_REPORT_KEY, JSON.stringify({
+                        name: report.userName, store: report.storeName, report
+                    }));
+                } else {
+                    sessionStorage.removeItem(PENDING_REPORT_KEY);
+                }
+            } catch (storageErr) {
+                console.warn('Pending report save failed:', storageErr);
+            }
+        }
+
+        function restorePendingReport() {
+            try {
+                const raw = sessionStorage.getItem(PENDING_REPORT_KEY);
+                if (!raw || !currentUser) return;
+                const saved = JSON.parse(raw);
+                const report = saved && saved.report;
+                const valid = report && typeof report === 'object' && typeof report.id === 'string'
+                    && typeof report.taipeiDate === 'string' && typeof report.productPN === 'string';
+                if (valid && saved.name === currentUser.name && saved.store === currentUser.store) {
+                    pendingReport = report;
+                }
+            } catch (storageErr) {
+                console.warn('Pending report restore failed:', storageErr);
+            }
+        }
+        // 本次開啟頁面後確認送出成功的回報；伺服器清單還沒讀回前先補進畫面
+        let sessionSavedReports = [];
+        let dailySalesRequestSeq = 0;
+        let dailySalesAppliedSeq = 0;
+
+        // 所有來自 Sheet 或使用者輸入的文字，插入 HTML 前都要經過這個函式
+        function escapeHtml(value) {
+            return String(value === undefined || value === null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function makeReportId() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+            return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+        }
+
         // ==================== Initialization ====================
         document.addEventListener('DOMContentLoaded', () => {
+            // 產品清單與刪除按鈕改用事件委派，不再把資料塞進行內 onclick
+            ['searchResults', 'allProducts'].forEach(id => {
+                document.getElementById(id).addEventListener('click', event => {
+                    const item = event.target.closest('[data-pn]');
+                    if (item) selectProduct(item.dataset.pn);
+                });
+            });
+            document.getElementById('historyList').addEventListener('click', event => {
+                const btn = event.target.closest('button[data-report-id]');
+                if (btn) deleteReportById(btn.dataset.reportId, btn.dataset.name, btn.dataset.store);
+            });
+
             checkLoginStatus();
             loadStores(); // 載入門市清單
             loadProductsFromSheet().catch(err => console.log('Products load error:', err));
@@ -673,6 +741,7 @@
             };
             
             localStorage.setItem('staffReport_user', JSON.stringify(currentUser));
+            restorePendingReport();
             loadHistory();
             showMainForm();
             console.log('Login completed, isAdmin:', isAdmin);
@@ -682,6 +751,7 @@
             const saved = localStorage.getItem('staffReport_user');
             if (saved) {
                 currentUser = JSON.parse(saved);
+                restorePendingReport();
                 // 保留登入資訊，顯示主要表單並載入歷史記錄
                 loadHistory();
                 showMainForm();
@@ -756,7 +826,13 @@
         
         // Admin 匯出功能 - 下載 Excel
         function toCsvCell(value) {
-            const text = String(value || '');
+            let text = String(value || '');
+            // 防 CSV 公式注入：以 = + - @ Tab CR 開頭的文字，前面加單引號讓 Excel 當成文字
+            // 純數字（含負數）與單獨的「-」不處理，避免數字欄變文字
+            const isPlainNumber = /^-?\d+(\.\d+)?$/.test(text);
+            if (/^[=+\-@\t\r]/.test(text) && !isPlainNumber && text !== '-') {
+                text = `'${text}`;
+            }
             if (/[",\n\r]/.test(text)) {
                 return `"${text.replace(/"/g, '""')}"`;
             }
@@ -839,6 +915,7 @@
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}`);
                     }
+                    forgetLocalReport(report.id);
                 }
                 
                 alert('已清除今日銷售資料');
@@ -848,6 +925,28 @@
             }
         }
         
+        // 已刪除的回報也要從本次補顯示清單與本機備援移除，否則會重新出現
+        function forgetLocalReport(reportId) {
+            const key = String(reportId);
+            deletedReportIds.add(key);
+            // 刪除前發出、還沒回來的讀取一律作廢，避免把刪掉的回報帶回畫面
+            dailySalesAppliedSeq = dailySalesRequestSeq;
+            // 刪除成功就先從畫面資料移除，不必等伺服器刷新成功
+            dailyReportsData = dailyReportsData.filter(r => String(r.id) !== key);
+            sessionSavedReports = sessionSavedReports.filter(r => String(r.id) !== key);
+            reportHistory = reportHistory.filter(r => r && String(r.id) !== key);
+            try {
+                localStorage.setItem('staffReport_history', JSON.stringify(reportHistory.slice(0, 200)));
+            } catch (storageErr) {
+                console.warn('Local history save failed:', storageErr);
+            }
+            try {
+                loadHistory();
+            } catch (historyErr) {
+                console.warn('History render failed:', historyErr);
+            }
+        }
+
         // 單筆刪除
         async function deleteReportById(reportId, reportName, reportStore) {
             if (!confirm('確定要刪除這筆資料嗎？')) {
@@ -869,6 +968,7 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
 
+                forgetLocalReport(reportId);
                 await loadDailySales();
             } catch (err) {
                 alert('刪除失敗: ' + err.message);
@@ -877,6 +977,10 @@
         
         // ==================== Daily Sales ====================
         let dailyReportsData = [];
+        // 今日清單是否已從伺服器成功讀回過；讀回過就以伺服器結果為準（即使是空清單）
+        let dailyReportsLoaded = false;
+        // 本頁已刪除的回報 ID，合併本機備援時排除
+        const deletedReportIds = new Set();
 
         function getAdminDailyTarget() {
             const saved = Number(localStorage.getItem(ADMIN_DAILY_TARGET_KEY));
@@ -900,6 +1004,10 @@
         
         async function loadDailySales() {
             if (GOOGLE_SHEETS_CONFIG.useDemoMode) return;
+
+            // 每次讀取編號；比較晚回來的舊回應直接丟棄，避免蓋掉較新的結果
+            const requestSeq = ++dailySalesRequestSeq;
+            const requestStartedAt = Date.now();
             
             try {
                 let url;
@@ -916,7 +1024,10 @@
                 }
                 
                 const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 data = await response.json();
+                if (requestSeq <= dailySalesAppliedSeq) return;
+                dailySalesAppliedSeq = requestSeq;
                 
                 if (data.total !== undefined || data.totalSales !== undefined) {
                     document.getElementById('dailySales').style.display = 'block';
@@ -952,7 +1063,17 @@
                     }
                     
                     // 儲存回報資料
-                    dailyReportsData = data.reports || [];
+                    // 伺服器成功讀回的清單才是準：本次補顯示的紀錄全部交給伺服器結果，
+                    // 已刪除的 ID 也不會再從補顯示清單冒出來
+                    dailyReportsData = (Array.isArray(data.reports) ? data.reports : [])
+                        .filter(r => !deletedReportIds.has(String(r.id)));
+                    dailyReportsLoaded = true;
+                    // 伺服器已有的 ID 交給伺服器顯示；讀取開始前就已確認成功、伺服器卻沒有的，
+                    // 代表已在別處被刪除，也一併移除；讀取開始後才送出的保留到下次讀取
+                    const loadedIds = new Set(dailyReportsData.map(r => String(r.id)));
+                    sessionSavedReports = sessionSavedReports.filter(r =>
+                        !loadedIds.has(String(r.id)) && (r.savedAt || 0) > requestStartedAt
+                    );
                     
                     // 更新歷史記錄顯示
                     loadHistory();
@@ -998,8 +1119,7 @@
                 showProductInfo(product);
             } else {
                 alert('找不到該產品，請確認 PN 碼是否正確！');
-                selectedProduct = null;
-                document.getElementById('productInfo').classList.remove('show');
+                clearSelectedProduct();
             }
         }
         
@@ -1037,6 +1157,8 @@
         }
         
         function onScanSuccess(decodedText, decodedResult) {
+            // 送出處理中不換產品，畫面要和實際送出的內容一致
+            if (isSubmittingReport) return;
             document.getElementById('productPN').value = decodedText;
             stopScanner();
             searchProduct();
@@ -1047,7 +1169,12 @@
             const query = document.getElementById('productPN').value.trim().toUpperCase();
             const resultsDiv = document.getElementById('searchResults');
             const allProductsDiv = document.getElementById('allProducts');
-            
+
+            // PN 已改成別的內容時，取消原本選取的產品，避免送出舊產品
+            if (selectedProduct && String(selectedProduct.pn).toUpperCase() !== query) {
+                clearSelectedProduct();
+            }
+
             // Hide all products list when typing
             allProductsDiv.style.display = 'none';
             
@@ -1072,9 +1199,9 @@
             let html = '';
             matches.slice(0, 10).forEach(p => {
                 html += `
-                    <div onclick="selectProduct('${p.pn}')" style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;">
-                        <div style="font-weight:600;color:var(--primary);font-size:14px;">${p.pn}</div>
-                        <div style="color:var(--primary);font-size:13px;">${p.name}</div>
+                    <div data-pn="${escapeHtml(p.pn)}" style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;">
+                        <div style="font-weight:600;color:var(--primary);font-size:14px;">${escapeHtml(p.pn)}</div>
+                        <div style="color:var(--primary);font-size:13px;">${escapeHtml(p.name)}</div>
                     </div>
                 `;
             });
@@ -1083,7 +1210,14 @@
             resultsDiv.style.display = 'block';
         }
         
+        // 只清商品選取；待確認的回報（pendingReport）另外保留，改 PN 再選回同一商品時仍可沿用原 ID
+        function clearSelectedProduct() {
+            selectedProduct = null;
+            document.getElementById('productInfo').classList.remove('show');
+        }
+
         function selectProduct(pn) {
+            if (isSubmittingReport) return;
             document.getElementById('productPN').value = pn;
             document.getElementById('searchResults').style.display = 'none';
             searchProduct();
@@ -1105,10 +1239,10 @@
             let html = '';
             productsCache.forEach(p => {
                 html += `
-                    <div onclick="selectProduct('${p.pn}')" style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;">
-                        <div style="font-weight:600;color:var(--primary);font-size:14px;">${p.pn}</div>
-                        <div style="color:var(--primary);font-size:13px;">${p.name}</div>
-                        <div style="color:#888;font-size:11px;">${p.spec || ''} | ${p.category || ''}</div>
+                    <div data-pn="${escapeHtml(p.pn)}" style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;">
+                        <div style="font-weight:600;color:var(--primary);font-size:14px;">${escapeHtml(p.pn)}</div>
+                        <div style="color:var(--primary);font-size:13px;">${escapeHtml(p.name)}</div>
+                        <div style="color:#888;font-size:11px;">${escapeHtml(p.spec)} | ${escapeHtml(p.category)}</div>
                     </div>
                 `;
             });
@@ -1134,62 +1268,220 @@
         }
         
         // ==================== Submit Report ====================
+        // 處理送出期間鎖住 PN 與備註，避免等待結果時內容被改掉
+        function setReportFormLocked(locked) {
+            ['productPN', 'reportNote'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = locked;
+            });
+        }
+
         async function submitReport() {
             if (isSubmittingReport) return;
 
-            const note = document.getElementById('reportNote').value.trim();
-            
-            if (!selectedProduct) {
+            const currentPN = document.getElementById('productPN').value.trim().toUpperCase();
+            if (!selectedProduct || String(selectedProduct.pn).toUpperCase() !== currentPN) {
+                clearSelectedProduct();
                 alert('請先查詢產品資訊！');
                 return;
             }
 
+            // 送出當下擷取整份表單內容，之後的比對、確認與寫入都只用這一份
+            const form = {
+                product: { ...selectedProduct },
+                note: document.getElementById('reportNote').value.trim() || '-'
+            };
+            const today = getTaipeiDateString();
+
             isSubmittingReport = true;
+            setReportFormLocked(true);
             const submitBtn = document.getElementById('submitReportBtn');
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Submitting 送出中...';
             }
-            
-            const report = {
-                id: Date.now(),
-                date: new Date().toISOString(),
-                timestamp: new Date().toISOString(),
-                userName: currentUser.name,
-                storeName: currentUser.store,
-                productPN: selectedProduct.pn,
-                productName: selectedProduct.name,
-                price: selectedProduct.price || '',
-                reward: selectedProduct.reward || '',
-                note: note || '-'
-            };
-            
-            // Save locally first
-            reportHistory.unshift(report);
-            localStorage.setItem('staffReport_history', JSON.stringify(reportHistory));
-            
+
+            let savedReport = null;
+            let alreadySavedReport = null;
+            let duplicateNotice = false;
+            // 最後一次寫入請求是否為重送；重送收到 400 不代表原回報沒寫入
+            let lastPushWasRetry = false;
             try {
-                await pushReportToSheets(report);
+                // 上一筆送出沒收到結果時（pendingReport 還在）：
+                // 同一天、同產品、同備註 → 視為重送，沿用原 ID，後端用原日期判斷是否已寫入
+                // 其他情況 → 先向後端確認上一筆是否已寫入，確認清楚前不會清掉 pendingReport
+                let isRetry = false;
+                if (pendingReport) {
+                    const previous = pendingReport;
+                    const sameContent = previous.productPN === form.product.pn && previous.note === form.note;
+                    if (sameContent && previous.taipeiDate === today) {
+                        isRetry = true;
+                    } else {
+                        const check = await checkPendingReport(previous);
+                        const status = check.status;
+                        const label = `${previous.productPN}，${previous.taipeiDate}`;
+                        if (status === 'found') {
+                            if (sameContent) {
+                                // 跨日又賣出同一個商品是很常見的事，不能直接當成同一筆
+                                const entryDate = check.entryDate || previous.taipeiDate;
+                                const isNewSale = confirm(
+                                    `上一筆回報（${previous.productPN}，${entryDate}）已經送出成功。\n\n` +
+                                    '目前這筆是今天另一筆新的成交嗎？\n按「確定」送出新的一筆；按「取消」表示就是上一筆，不再送。'
+                                );
+                                setPendingReport(null);
+                                if (!isNewSale) {
+                                    // 以伺服器實際入帳日期為準（午夜前送出、午夜後才入帳時會是今天）
+                                    alreadySavedReport = { ...previous, taipeiDate: entryDate };
+                                }
+                            } else {
+                                // 取消時保留 pendingReport，下次提交仍會再問
+                                if (!confirm(`上一筆回報（${label}）已經送出成功。\n\n目前這筆是另一筆新的成交嗎？按「確定」送出。`)) return;
+                                setPendingReport(null);
+                            }
+                        } else if (status === 'missing') {
+                            // 後端明確查無上一筆，直接把目前這筆當成新的回報
+                            setPendingReport(null);
+                        } else {
+                            const where = previous.taipeiDate === today
+                                ? '請先到下方「今日回報記錄」確認，避免重複回報。'
+                                : `原回報日期是 ${previous.taipeiDate}，今日回報記錄看不到，請先向 Admin 確認，避免重複回報。`;
+                            if (!confirm(`上一筆回報（${label}）送出時沒有收到結果，現在也無法確認是否成功。\n${where}\n\n仍要把目前這筆當成新的回報送出嗎？`)) return;
+                            setPendingReport(null);
+                        }
+                    }
+                }
 
-                // Show success as soon as the report is saved; refresh today's totals in the background.
-                document.getElementById('reportForm').classList.remove('active');
-                document.getElementById('successResult').classList.remove('hidden');
+                if (!alreadySavedReport) {
+                    const newReport = () => ({
+                        id: makeReportId(),
+                        taipeiDate: today,
+                        date: new Date().toISOString(),
+                        timestamp: new Date().toISOString(),
+                        userName: currentUser.name,
+                        storeName: currentUser.store,
+                        productPN: form.product.pn,
+                        productName: form.product.name,
+                        price: form.product.price || '',
+                        reward: form.product.reward || '',
+                        note: form.note
+                    });
+                    let report = isRetry ? pendingReport : newReport();
+                    setPendingReport(report);
 
-                loadHistory();
-                loadDailySales();
+                    let result;
+                    try {
+                        lastPushWasRetry = isRetry;
+                        result = await pushReportToSheets(report, isRetry);
+                    } catch (pushErr) {
+                        // 重送時後端明確查無上一筆（含手機時鐘不準、跨午夜）→ 上一筆確定沒寫入，改用新 ID 送一次
+                        if (isRetry && pushErr.status === 404 && pushErr.data && pushErr.data.status === 'not_found') {
+                            report = newReport();
+                            setPendingReport(report);
+                            isRetry = false;
+                            lastPushWasRetry = false;
+                            result = await pushReportToSheets(report, false);
+                        } else {
+                            throw pushErr;
+                        }
+                    }
+                    if (result && result.entryDate) report.taipeiDate = result.entryDate;
+                    setPendingReport(null);
+                    savedReport = report;
+                    if (result && result.duplicate === true) duplicateNotice = true;
+                }
             } catch (err) {
-                alert('回報送出失敗，請稍後再試');
+                if (err && (err.status === 400 || err.status === 422) && !lastPushWasRetry) {
+                    // 伺服器明確拒絕：這筆確定沒寫入，不再保留待確認
+                    setPendingReport(null);
+                    const reason = err.data && err.data.error ? `（${err.data.error}）` : '';
+                    alert(`回報資料不正確，這筆沒有送出${reason}。\n請登出後重新登入再試，仍不行請聯絡 Admin。`);
+                } else {
+                    alert('回報送出失敗，請稍後再試');
+                }
                 console.error('Submit report failed:', err);
             } finally {
                 isSubmittingReport = false;
+                setReportFormLocked(false);
                 if (submitBtn) {
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Submit 提交回報';
                 }
             }
+
+            if (alreadySavedReport) {
+                alert(`上一筆回報（${alreadySavedReport.productPN}，${alreadySavedReport.taipeiDate}）已經送出成功，不需要再送。`);
+                showSubmitSuccess(alreadySavedReport);
+                return;
+            }
+            if (savedReport) {
+                if (duplicateNotice) {
+                    alert('上一筆其實已經送出成功，這次沒有重複寫入。\n如果這是另一筆新的成交，請再送一次。');
+                }
+                showSubmitSuccess(savedReport);
+            }
         }
-        
-        async function pushReportToSheets(report) {
+
+        // 送出成功後的畫面更新；這裡的任何錯誤都不能再顯示「送出失敗」
+        function showSubmitSuccess(savedReport) {
+            if (savedReport) {
+                try {
+                    sessionSavedReports = sessionSavedReports.filter(r => r.id !== savedReport.id);
+                    sessionSavedReports.unshift({ ...savedReport, savedAt: Date.now() });
+                    reportHistory = reportHistory.filter(r => r && r.id !== savedReport.id);
+                    reportHistory.unshift(savedReport);
+                    localStorage.setItem('staffReport_history', JSON.stringify(reportHistory.slice(0, 200)));
+                } catch (storageErr) {
+                    console.warn('Local history save failed:', storageErr);
+                }
+            }
+
+            document.getElementById('reportForm').classList.remove('active');
+            document.getElementById('successResult').classList.remove('hidden');
+
+            try {
+                loadHistory();
+            } catch (historyErr) {
+                console.warn('History render failed:', historyErr);
+            }
+            loadDailySales();
+        }
+
+        // 確認「沒收到結果的上一筆」是否已寫入：found／missing／unknown
+        // 只有後端明確回 status: not_found 才算 missing，其他錯誤一律 unknown
+        async function checkPendingReport(report) {
+            if (GOOGLE_SHEETS_CONFIG.useDemoMode) return { status: 'unknown' };
+            try {
+                const response = await fetch(GOOGLE_SHEETS_CONFIG.reportsUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...buildReportPayload(report, true), checkOnly: true })
+                });
+                const data = await response.json().catch(() => null);
+                if (response.status === 404 && data && data.status === 'not_found') return { status: 'missing' };
+                if (response.ok && data && data.duplicate === true) return { status: 'found', entryDate: data.entryDate };
+                return { status: 'unknown' };
+            } catch (err) {
+                console.warn('Pending report check failed:', err);
+                return { status: 'unknown' };
+            }
+        }
+
+        function buildReportPayload(report, isRetry) {
+            return {
+                id: report.id,
+                retry: Boolean(isRetry),
+                reportDate: report.taipeiDate,
+                name: report.userName,
+                store: report.storeName,
+                pn: report.productPN,
+                productName: report.productName,
+                price: report.price || '',
+                reward: report.reward || '',
+                note: report.note
+            };
+        }
+
+        async function pushReportToSheets(report, isRetry) {
             if (GOOGLE_SHEETS_CONFIG.useDemoMode) {
                 console.log('Demo mode - report saved locally:', report);
                 return true;
@@ -1201,21 +1493,17 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        name: report.userName,
-                        store: report.storeName,
-                        pn: report.productPN,
-                        productName: report.productName,
-                        price: report.price || '',
-                        reward: report.reward || '',
-                        note: report.note
-                    })
+                    body: JSON.stringify(buildReportPayload(report, isRetry))
                 });
 
+                const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                    const httpErr = new Error(`HTTP ${response.status}`);
+                    httpErr.status = response.status;
+                    httpErr.data = data;
+                    throw httpErr;
                 }
-                return true;
+                return data;
             } catch (err) {
                 console.error('Failed to push report to Google Sheets:', err);
                 throw err;
@@ -1223,36 +1511,76 @@
         }
         
         function loadHistory() {
-            // 優先使用 Google Sheets 的資料（dailyReportsData）
-            if (dailyReportsData && dailyReportsData.length > 0) {
+            // 優先使用 Google Sheets 的資料（dailyReportsData）；成功讀回過就以伺服器為準，空清單也一樣
+            const today = getTaipeiDateString();
+            const sessionToday = (currentUser && !currentUser.isAdmin ? sessionSavedReports : [])
+                .filter(r => r.taipeiDate === today && !deletedReportIds.has(String(r.id)));
+            if (dailyReportsLoaded || (dailyReportsData && dailyReportsData.length > 0) || sessionToday.length > 0) {
+                // 本次確認送出成功、但伺服器清單還沒讀回的回報，先補在最上面（依 ID 去重）
+                const serverIds = new Set(dailyReportsData.map(r => String(r.id)));
+                const pendingDisplay = sessionToday
+                    .filter(r => !serverIds.has(String(r.id)))
+                    .map(r => ({
+                        id: r.id,
+                        pn: r.productPN,
+                        productName: r.productName,
+                        timestamp: '剛剛送出',
+                        name: r.userName,
+                        store: r.storeName,
+                        note: r.note,
+                        reward: r.reward
+                    }));
                 let html = '';
-                dailyReportsData.forEach((r, index) => {
-                    const deleteBtn = currentUser ? 
-                        `<button onclick="deleteReportById('${r.id}', '${r.name}', '${r.store}')" style="background:#fee2e2;border:1px solid #fecaca;color:#dc2626;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;">Delete</button>` : '';
-                    
+                [...pendingDisplay, ...dailyReportsData].forEach((r, index) => {
+                    const deleteBtn = currentUser ?
+                        `<button type="button" data-report-id="${escapeHtml(r.id)}" data-name="${escapeHtml(r.name)}" data-store="${escapeHtml(r.store)}" style="background:#fee2e2;border:1px solid #fecaca;color:#dc2626;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;">Delete</button>` : '';
+
                     html += `
                         <div class="history-item">
                             <div class="header">
-                                <span class="pn">${r.pn} - ${r.productName}</span>
-                                <span class="time">${r.timestamp}</span>
+                                <span class="pn">${escapeHtml(r.pn)} - ${escapeHtml(r.productName)}</span>
+                                <span class="time">${escapeHtml(r.timestamp)}</span>
                             </div>
-                            <div style="font-size:12px;color:#6b7280;margin:5px 0;">${r.name} | ${r.store}</div>
-                            <div style="font-size:12px;color:#6b7280;margin:5px 0;">台獎：${r.reward || '-'}</div>
+                            <div style="font-size:12px;color:#6b7280;margin:5px 0;">${escapeHtml(r.name)} | ${escapeHtml(r.store)}</div>
+                            <div style="font-size:12px;color:#6b7280;margin:5px 0;">台獎：${escapeHtml(r.reward || '-')}</div>
                             <div style="display:flex;justify-content:space-between;align-items:center;">
-                                ${r.note ? `<div class="note">${r.note}</div>` : '<div></div>'}
+                                ${r.note ? `<div class="note">${escapeHtml(r.note)}</div>` : '<div></div>'}
                                 ${deleteBtn}
                             </div>
                         </div>
                     `;
                 });
-                document.getElementById('historyList').innerHTML = html;
+                document.getElementById('historyList').innerHTML = html ||
+                    '<p style="text-align:center;color:#666;font-size:13px;">尚無回報記錄 No records yet</p>';
                 return;
             }
             
             // 備用：使用本地儲存
-            const saved = localStorage.getItem('staffReport_history');
+            // 本機備援資料讀取失敗（瀏覽器封鎖儲存或資料損壞）時，沿用記憶體中的紀錄
+            let stored = [];
+            try {
+                const raw = localStorage.getItem('staffReport_history');
+                const parsed = raw ? JSON.parse(raw) : [];
+                if (Array.isArray(parsed)) stored = parsed;
+            } catch (storageErr) {
+                console.warn('Local history read failed:', storageErr);
+            }
+            // 記憶體中的紀錄優先，再補上本機儲存裡還沒出現的；不是物件的項目直接略過
+            const merged = [];
+            const seenIds = new Set();
+            [...reportHistory, ...stored].forEach(item => {
+                if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+                const key = item.id !== undefined && item.id !== null ? String(item.id) : null;
+                if (key !== null) {
+                    if (deletedReportIds.has(key)) return;
+                    if (seenIds.has(key)) return;
+                    seenIds.add(key);
+                }
+                merged.push(item);
+            });
+            const saved = merged.length > 0 ? merged : null;
             if (saved) {
-                reportHistory = JSON.parse(saved);
+                reportHistory = saved;
                 const today = new Date().toDateString();
                 const visibleReports = reportHistory.filter(r => {
                     const reportStore = r.storeName || r.store || '';
@@ -1271,13 +1599,13 @@
                         html += `
                             <div class="history-item">
                                 <div class="header">
-                                    <span class="pn">${r.productPN || r.pn || ''} - ${r.productName || r.name || ''}</span>
-                                    <span class="time">${r.timestamp || r.date || ''}</span>
+                                    <span class="pn">${escapeHtml(r.productPN || r.pn || '')} - ${escapeHtml(r.productName || r.name || '')}</span>
+                                    <span class="time">${escapeHtml(r.timestamp || r.date || '')}</span>
                                 </div>
-                                <div style="font-size:12px;color:#888;margin:5px 0;">${r.userName || r.name || ''} | ${r.storeName || r.store || ''}</div>
-                                <div style="font-size:12px;color:#888;margin:5px 0;">台獎：${r.reward || '-'}</div>
+                                <div style="font-size:12px;color:#888;margin:5px 0;">${escapeHtml(r.userName || r.name || '')} | ${escapeHtml(r.storeName || r.store || '')}</div>
+                                <div style="font-size:12px;color:#888;margin:5px 0;">台獎：${escapeHtml(r.reward || '-')}</div>
                                 <div style="display:flex;justify-content:space-between;align-items:center;">
-                                    ${r.note && r.note !== '-' ? `<div class="note">${r.note}</div>` : '<div></div>'}
+                                    ${r.note && r.note !== '-' ? `<div class="note">${escapeHtml(r.note)}</div>` : '<div></div>'}
                                 </div>
                             </div>
                         `;
@@ -1295,9 +1623,8 @@
         function resetForm() {
             document.getElementById('productPN').value = '';
             document.getElementById('reportNote').value = '';
-            document.getElementById('productInfo').classList.remove('show');
-            selectedProduct = null;
-            
+            clearSelectedProduct();
+
             document.getElementById('successResult').classList.add('hidden');
             document.getElementById('reportForm').classList.add('active');
         }
